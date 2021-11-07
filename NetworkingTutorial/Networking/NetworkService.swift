@@ -11,11 +11,19 @@ import Foundation
 struct NetworkService {
     
     
-    private func request<T: Codable>(route: Route,
+    static let shared = NetworkService()
+    
+    private init() {}
+    
+    func firstRequest(completion: @escaping (Result<[Dish], Error>) -> Void) {
+        request(route: .temp, method: .get, completion: completion)
+    }
+    
+    private func request<T: Decodable>(route: Route,
                                      method: Method,
                                      parameters: [String: Any]? = nil,
-                                     type: T.Type,
-                                     completion: (Result<T, Error>) -> Void ) {
+//                                     type: T.Type,
+                                     completion: @escaping (Result<T, Error>) -> Void ) {
         guard let request = createRequest(route: route, method: method, parameters: parameters) else {
             completion(.failure(AppError.unknownError))
             return
@@ -25,12 +33,53 @@ struct NetworkService {
             var result: Result<Data, Error>?
             if let data = data {
                 result = .success(data)
+                let responseString = String(data: data, encoding: .utf8) ?? "Could not stringify data"
+//                print("The response is \(responseString)")
+            } else if let error = error {
+                result = .failure(error)
+                print("The error is: \(error.localizedDescription)")
+            }
+            
+            DispatchQueue.main.async {
+                self.handleResponse(result: result, completion: completion)
             }
             
         }.resume()
         
     }
     
+    
+    private func handleResponse<T: Decodable>(result: Result<Data, Error>?,
+                                completion:(Result<T, Error>) -> Void) {
+        
+        guard let result = result else {
+            completion(.failure(AppError.unknownError))
+            return
+        }
+        switch result {
+        
+        case .success(let data):
+            let decoder = JSONDecoder()
+            guard let response = try? decoder.decode(ApiResponse<T>.self, from: data) else {
+                completion(.failure(AppError.errorDecoding))
+                return
+            }
+            
+            if let error = response.error {
+                completion(.failure(AppError.serverError(error)))
+                return
+            }
+            
+            if let decodeData = response.data {
+                completion(.success(decodeData))
+            } else  {
+                completion(.failure(AppError.unknownError))
+            }
+            
+        case .failure(let error):
+            completion(.failure(error))
+        }
+    }
     
     /// <#Description#>
     /// - Parameters:

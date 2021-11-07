@@ -33,6 +33,18 @@ class ViewController: UIViewController {
 //        
 //        print("The url is \(request?.url)")
 //        print("The body is \(request?.httpBody)")
+        NetworkService.shared.firstRequest { (result) in
+            switch result {
+                
+            case .success(let data):
+                for dish in data {
+                    print(dish.name ?? "")
+                }
+//                print("The decodeddata is: \(data)")
+            case .failure(let error):
+                print("The error is \(error.localizedDescription)")
+            }
+        }
         view.backgroundColor = .blue
         setUpConstraint()
     }
